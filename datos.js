@@ -1,50 +1,58 @@
-// VARIABLES GLOBALES DE LA PARTIDA ECONÓMICA
 let bando = '';
 let divisa = '\$';
-let dineroBilletera = 100;
-let dineroCajero = 0; // Dinero acumulado físicamente en la bóveda
+let dineroBilletera = 150; // Empezamos con un extra para acelerar la presentación
 let multiplicadorArancel = 1;
 
-// LISTA MASIVA DE EDIFICIOS COMPRABLES (A LOS COSTADOS DEL MAPA)
-const expansionesUSA = [
-    { n: "Garaje de Código", h: 45, desc: "Tu primer cuartel de software" },
-    { n: "Oficina de Ciberseguridad", h: 60, desc: "Protección contra hackeos" },
-    { n: "Servidores Cloud LED", h: 75, desc: "Nube de datos de alta velocidad" },
-    { n: "Laboratorio de Robótica", h: 80, desc: "Brazos mecánicos automatizados" },
-    { n: "Mega-Fábrica Silicon", h: 100, desc: "Producción en masa de semiconductores" },
-    { n: "Antena Espía Satelital", h: 120, desc: "Vigilancia de rutas rivales" },
-    { n: "Matriz Cuántica Central", h: 140, desc: "La Inteligencia Artificial definitiva" }
-];
+// Base de productos físicos para las cintas transportadoras
+let productosEnCinta = [];
 
-const expansionesChina = [
-    { n: "Taller de Ensamble", h: 45, desc: "Inicio manual en Shenzhen" },
-    { n: "Cinta Transportadora", h: 55, desc: "Automatización básica de línea" },
-    { n: "Fábrica de Neón Solar", h: 70, desc: "Producción de paneles fotovoltaicos" },
-    { n: "Giga-Fábrica de Litio", h: 90, desc: "Baterías para vehículos eléctricos" },
-    { n: "Grúa del Puerto Autónomo", h: 110, desc: "Logística marina robotizada" },
-    { n: "Centro de Carga Ferroviaria", h: 125, desc: "Exportación terrestre exprés" },
-    { n: "Refinería de Tierras Raras", h: 145, desc: "Monopolio mundial de minerales" }
-];
+// TRES CATEGORÍAS DE BOTONES PARA COMPRAR (EVITA QUE SEA ABURRIDO)
+const comprasUSA = {
+    maquinas: [
+        { n: "Línea de Microchips", c: 60, prod: "Chip ⚡", v: 25 },
+        { n: "Ensambladora de PCs", c: 250, prod: "Computador 💻", v: 75 },
+        { n: "Laboratorio de IA", c: 900, prod: "Super-Server 🧠", v: 250 }
+    ],
+    personal: [
+        { n: "Contratar Ingeniero", c: 80, mejora: "velocidad_cinta" },
+        { n: "Contratar Científico", c: 400, mejora: "velocidad_personaje" }
+    ],
+    defensa: [
+        { n: "Ciberseguridad FBI", c: 150, mejora: "antivirus" }
+    ]
+};
 
-let edificiosComprados = [];
-let animacionBilletes = [];
+const comprasChina = {
+    maquinas: [
+        { n: "Extracción de Litio", c: 60, prod: "Litio 🪨", v: 22 },
+        { n: "Fábrica de Celdas", c: 250, prod: "Batería 🔋", v: 70 },
+        { n: "Megaplanta Automotriz", c: 900, prod: "Auto Eléctrico 🚗", v: 240 }
+    ],
+    personal: [
+        { n: "Contratar Operario", c: 80, mejora: "velocidad_cinta" },
+        { n: "Contratar Supervisor", c: 400, mejora: "velocidad_personaje" }
+    ],
+    defensa: [
+        { n: "Aduana Blindada", c: 150, mejora: "antivirus" }
+    ]
+};
 
-// CÁLCULO DE COSTES PROGRESIVOS ESTILO ROBLOX TYCOON
-function calcularCosteSiguiente() {
-    // Cada edificio cuesta el triple que el anterior para máxima adicción
-    return Math.round(50 * Math.pow(3, edificiosComprados.length));
-}
+// Contadores de progreso del Tycoon
+let mejorasCompradas = { maquinas: 0, personal: 0, defensa: 0 };
+let fabricasFisicas = [];
 
-// ACTUALIZACIÓN DE TEXTOS EN LA INTERFAZ SUPERIOR
 function actualizarHUD() {
-    let listaActual = bando === 'usa' ? expansionesUSA : expansionesChina;
-    let coste = calcularCosteSiguiente();
+    let base = bando === 'usa' ? comprasUSA : comprasChina;
+    let txtSiguiente = "";
     
-    let textoSiguiente = edificiosComprados.length < listaActual.length 
-        ? `Siguiente: ${listaActual[edificiosComprados.length].n} (${divisa}${coste})`
-        : "🏆 ¡IMPERIO COMERCIAL COMPLETADO! 🏆";
+    if (mejorasCompradas.maquinas < base.maquinas.length) {
+        let sigM = base.maquinas[mejorasCompradas.maquinas];
+        txtSiguiente = `Siguiente Infraestructura: ${sigM.n} (${divisa}${sigM.c})`;
+    } else {
+        txtSiguiente = "🏆 ¡SUPERPOTENCIA INDUSTRIAL CONSTRUIDA! 🏆";
+    }
 
     document.getElementById('txt-billetera').innerText = `${divisa}${dineroBilletera}`;
-    document.getElementById('txt-cajero').innerText = `🏦 En Cajero / Bóveda: ${divisa}${dineroCajero}`;
-    document.getElementById('txt-siguiente').innerText = textoSiguiente;
+    document.getElementById('txt-cajero').innerText = `📦 Productos vendidos en Huincha de Carga`;
+    document.getElementById('txt-siguiente').innerText = txtSiguiente;
 }
