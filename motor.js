@@ -1,222 +1,116 @@
-const canvas = document.getElementById('lienzoJuego');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById('lienzoJuego'), ctx = canvas.getContext('2d');
+function res() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.addEventListener('resize', res); res();
 
-function ajustarPantalla() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', ajustarPantalla);
-ajustarPantalla();
+let jug = { x: 0, y: 140, r: 14, color: '#3b82f6', v: 9.5 }, velH = 3.5;
+let pFab = { x: -140, y: 80, radio: 28, color: '#22c55e', texto: 'FÁBRICA', cat: 'maquinas' };
+let pPer = { x: 0, y: 80, radio: 28, color: '#a855f7', texto: 'PERSONAL', cat: 'personal' };
+let pDef = { x: 140, y: 80, radio: 28, color: '#3b82f6', texto: 'DEFENSA', cat: 'defensa' };
+let zVent = { x: 240, y: -80, w: 60, h: 60 }, teclas = {};
 
-// CONFIGURACIÓN DE ELEMENTOS DEL MAPA MASIVO
-let jugador = { x: 0, y: 150, radio: 16, color: '#3b82f6', velocidad: 6.5 };
-let padCompra = { x: -160, y: 40, radio: 35, color: '#22c55e', texto: 'COMPRAR' };
-let padCajero = { x: 160, y: 40, radio: 35, color: '#eab308', texto: 'CAJERO' };
-
-const teclas = {};
 window.addEventListener('keydown', e => teclas[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => teclas[e.key.toLowerCase()] = false);
 
-// FUNCIÓN DE ARRANQUE MANDATORIA AL SELECCIONAR PAÍS
-function iniciarConBando(seleccion) {
-    bando = seleccion;
-    divisa = bando === 'usa' ? '$' : '¥';
-    jugador.color = bando === 'usa' ? '#3b82f6' : '#eab308';
-    
-    // Cambiar estética de la UI según el bando
-    document.getElementById('borde-bando-ui').style.borderLeftColor = jugador.color;
+function iniciarConBando(sel) {
+    bando = sel; divisa = bando === 'usa' ? '$' : '¥';
+    jug.color = bando === 'usa' ? '#3b82f6' : '#eab308';
+    document.getElementById('borde-bando-ui').style.borderLeftColor = jug.color;
     document.getElementById('pantalla-inicio').style.display = 'none';
     document.getElementById('ui-juego').style.display = 'flex';
-    
-    // Resetear variables por seguridad
-    dineroBilletera = 100;
-    dineroCajero = 0;
-    edificiosComprados = [];
-    animacionBilletes = [];
-    
+    dineroBilletera = 150; productosEnCinta = []; fabricasFisicas = [];
+    mejorasCompradas = { maquinas: 0, personal: 0, defensa: 0 };
     actualizarHUD();
-    bucleDineroPasivo();
-    bucleAlertasIA();
-    requestAnimationFrame(bucleRenderizado);
-}
-
-// GENERACIÓN DE DINERO PASIVO HACIA EL CAJERO AUTOMÁTICO
-function bucleDineroPasivo() {
     setInterval(() => {
-        if (edificiosComprados.length > 0) {
-            let ingresosFraccion = 0;
-            edificiosComprados.forEach((ed, idx) => {
-                ingresosFraccion += (idx + 1) * 8; // Cada fábrica produce más que la anterior
-                // Crear efecto visual de fajo volando hacia el cajero
-                animacionBilletes.push({ x: ed.x, y: ed.y - 20, tx: padCajero.x, ty: padCajero.y, p: 0 });
-            });
-            dineroCajero += Math.round(ingresosFraccion * multiplicadorArancel);
-            actualizarHUD();
+        let b = bando === 'usa' ? comprasUSA : comprasChina;
+        for (let i = 0; i < mejorasCompradas.maquinas; i++) {
+            productosEnCinta.push({ x: -200 + (i * 90), y: -100, txt: b.maquinas[i].prod, valor: b.maquinas[i].v * 5, tx: zVent.x });
         }
-    }, 1500);
-}
-
-// EVENTOS ALEATORIOS DE IMPUESTOS Y ARANCELES
-function bucleAlertasIA() {
+    }, 1800);
     setInterval(() => {
-        let azar = Math.random();
-        const divAlerta = document.getElementById('alerta-arancel');
-        if (azar < 0.55) {
-            multiplicadorArancel = 0.4; // Reduce ingresos a la bóveda un 60%
-            divAlerta.innerText = bando === 'usa' 
-                ? "🚨 ¡China aplica Aranceles de Tecnología! Producción -60%" 
-                : "🚨 ¡EE.UU. bloquea la Exportación Naval! Producción -60%";
-            divAlerta.style.display = 'block';
-        } else {
-            multiplicadorArancel = 1;
-            divAlerta.style.display = 'none';
-        }
-    }, 12000);
+        let az = Math.random(), div = document.getElementById('alerta-arancel');
+        if (az < 0.55 && mejorasCompradas.defensa === 0) {
+            multiplicadorArancel = 0.3;
+            div.innerText = bando === 'usa' ? "🚨 ¡Aranceles! Tecnología se vende un 70% más barata." : "🚨 ¡Sanción! El Litio pierde el 70% de su valor.";
+            div.style.display = 'block';
+        } else { multiplicadorArancel = 1; div.style.display = 'none'; }
+    }, 10000);
+    requestAnimationFrame(render);
 }
 
-function pintarPlataforma(pad, activa) {
-    ctx.beginPath();
-    ctx.arc(pad.x, pad.y, pad.radio, 0, Math.PI * 2);
-    ctx.fillStyle = pad.color;
-    ctx.globalAlpha = activa ? 0.95 : 0.35;
-    ctx.fill();
-    ctx.globalAlpha = 1.0;
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#ffffff';
-    ctx.stroke();
-    
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 10px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(pad.texto, pad.x, pad.y + 4);
+function pPad(p, act, cost) {
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.radio, 0, Math.PI * 2);
+    ctx.fillStyle = p.color; ctx.globalAlpha = act ? 0.95 : 0.3; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(p.texto, p.x, p.y - 2); ctx.font = '7px sans-serif'; ctx.fillText(cost, p.x, p.y + 8);
 }
 
-// BUCLE GRÁFICO PRINCIPAL (60 FPS)
-function bucleRenderizado() {
-    // Fondo de color según bando elegido
-    ctx.fillStyle = bando === 'usa' ? '#0b0f19' : '#1f0d02';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+function render() {
+    ctx.fillStyle = bando === 'usa' ? '#0c111d' : '#221003'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save(); ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.fillStyle = '#1e293b'; ctx.fillRect(-canvas.width * 0.44, -canvas.height * 0.38, canvas.width * 0.88, canvas.height * 0.72);
+    ctx.fillStyle = '#475569'; ctx.fillRect(-220, -105, 480, 12);
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(-220, -102, 480, 6);
+    ctx.fillStyle = '#334155';
+    let des = (Date.now() / 20) % 30;
+    for(let gx = -220 + des; gx < 260; gx += 30) ctx.fillRect(gx, -102, 4, 6);
+    ctx.fillStyle = '#16a34a'; ctx.fillRect(zVent.x, zVent.y, zVent.w, zVent.h);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText("EXPORTACIÓN", zVent.x + 30, zVent.y + 34);
 
-    ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2); // Centrar plano en pantalla
+    let base = bando === 'usa' ? comprasUSA : comprasChina;
+    let cM = mejorasCompradas.maquinas < base.maquinas.length ? divisa + base.maquinas[mejorasCompradas.maquinas].c : 'MAX';
+    let cP = mejorasCompradas.personal < base.personal.length ? divisa + base.personal[mejorasCompradas.personal].c : 'MAX';
+    let cD = mejorasCompradas.defensa < base.defensa.length ? divisa + base.defensa[mejorasCompradas.defensa].c : 'MAX';
 
-    // Terreno masivo gris central
-    ctx.fillStyle = '#222f3e';
-    ctx.fillRect(-canvas.width * 0.45, -canvas.height * 0.4, canvas.width * 0.9, canvas.height * 0.75);
+    pPad(pFab, cM !== 'MAX' && dineroBilletera >= base.maquinas[mejorasCompradas.maquinas].c, cM);
+    pPad(pPer, cP !== 'MAX' && dineroBilletera >= base.personal[mejorasCompradas.personal].c, cP);
+    pPad(pDef, cD !== 'MAX' && dineroBilletera >= base.defensa[mejorasCompradas.defensa].c, cD);
 
-    // Pintar los botones interactivos del suelo
-    let costeProgresivo = calcularCosteSiguiente();
-    let listaFábricas = bando === 'usa' ? expansionesUSA : expansionesChina;
-    pintarPlataforma(padCompra, dineroBilletera >= costeProgresivo && edificiosComprados.length < listaFábricas.length);
-    pintarPlataforma(padCajero, dineroCajero > 0);
-
-    // Renderizar fábricas en los costados con perspectiva/sombras
-    edificiosComprados.forEach(f => {
-        // Sombra proyectada inclinada al costado
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-        ctx.fillRect(f.x - 16, f.y - f.h + 8, 38, f.h);
-        
-        // Estructura principal
-        ctx.fillStyle = f.color;
-        ctx.fillRect(f.x - 20, f.y - f.h, 40, f.h);
-        
-        // Ventanas brillantes de Neón
-        ctx.fillStyle = bando === 'usa' ? '#00d2ff' : '#ffd700';
-        ctx.fillRect(f.x - 12, f.y - f.h + 12, 7, 8);
-        ctx.fillRect(f.x + 5, f.y - f.h + 12, 7, 8);
-        if(f.h > 65) {
-            ctx.fillRect(f.x - 12, f.y - f.h + 28, 7, 8);
-            ctx.fillRect(f.x + 5, f.y - f.h + 28, 7, 8);
-        }
-
-        // Techo blanco lineal estilo bloque
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(f.x - 20, f.y - f.h, 40, 5);
-
-        // Nombre flotante del edificio
-        ctx.fillStyle = '#a4b0be';
-        ctx.font = 'bold 9px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(f.nombre, f.x, f.y + 15);
+    fabricasFisicas.forEach(f => {
+        ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(f.x - 16, f.y - f.h + 6, 36, f.h);
+        ctx.fillStyle = f.color; ctx.fillRect(f.x - 20, f.y - f.h, 40, f.h);
+        ctx.fillStyle = bando === 'usa' ? '#00f0ff' : '#ffcc00';
+        ctx.fillRect(f.x - 12, f.y - f.h + 10, 6, 8); ctx.fillRect(f.x + 6, f.y - f.h + 10, 6, 8);
+        ctx.fillStyle = '#fff'; ctx.fillRect(f.x - 20, f.y - f.h, 40, 5);
+        ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 7px sans-serif'; ctx.fillText(f.nombre, f.x, f.y + 12);
     });
 
-    // Billetes en 2.5D volando físicamente hacia el cajero
-    for (let i = animacionBilletes.length - 1; i >= 0; i--) {
-        let b = animacionBilletes[i];
-        b.p += 0.035; // Velocidad del vuelo
-        let actualX = b.x + (b.tx - b.x) * b.p;
-        let actualY = b.y + (b.ty - b.y) * b.p - (Math.sin(b.p * Math.PI) * 40); // Curva parabólica de salto
-
-        ctx.fillStyle = '#2ed573';
-        ctx.fillRect(actualX - 8, actualY - 4, 16, 7);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(actualX - 2, actualY - 4, 4, 7); // Detalle del billete
-
-        if (b.p >= 1) animacionBilletes.splice(i, 1);
+    for (let i = productosEnCinta.length - 1; i >= 0; i--) {
+        let pr = productosEnCinta[i]; pr.x += velH;
+        ctx.fillStyle = bando === 'usa' ? '#3b82f6' : '#eab308'; ctx.fillRect(pr.x - 12, pr.y - 6, 24, 12);
+        ctx.fillStyle = '#fff'; ctx.font = '7px sans-serif'; ctx.fillText(pr.txt, pr.x, pr.y + 3);
+        if (pr.x >= pr.tx) { dineroBilletera += Math.round(pr.valor * multiplicadorArancel); productosEnCinta.splice(i, 1); actualizarHUD(); }
     }
 
-    // Dibujar dinero acumulado sobre el cajero si tiene fondos
-    if (dineroCajero > 0) {
-        ctx.fillStyle = '#2ed573';
-        ctx.fillRect(padCajero.x - 14, padCajero.y - 24, 28, 14);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 9px sans-serif';
-        ctx.fillText(divisa + dineroCajero, padCajero.x, padCajero.y - 28);
-    }
-
-    // Dibujar Jugador (Avatar Roblox)
-    ctx.fillStyle = jugador.color;
-    ctx.fillRect(jugador.x - jugador.radio, jugador.y - jugador.radio, jugador.radio * 2, jugador.radio * 2);
-    // Rostro
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(jugador.x - 9, jugador.y - 5, 5, 5);
-    ctx.fillRect(jugador.x + 4, jugador.y - 5, 5, 5);
-
+    let px = jug.x, py = jug.y, r = jug.radio;
+    ctx.fillStyle = '#1e293b'; let osc = Math.sin(Date.now() / 100) * 4;
+    ctx.fillRect(px - 5, py + r - 4, 3, 7 + osc); ctx.fillRect(px + 2, py + r - 4, 3, 7 - osc);
+    ctx.fillStyle = jug.color; ctx.fillRect(px - r, py - r + 4, r * 2, r * 2 - 4);
+    ctx.beginPath(); ctx.arc(px, py - r + 4, 6, 0, Math.PI*2); ctx.fillStyle = '#fed7aa'; ctx.fill();
+    ctx.fillStyle = '#000'; ctx.fillRect(px - 2, py - r + 3, 1, 2); ctx.fillRect(px + 2, py - r + 3, 1, 2);
     ctx.restore();
 
-    // Procesamiento de Entradas de Teclado
-    if (teclas['w'] || teclas['arrowup']) jugador.y -= jugador.velocidad;
-    if (teclas['s'] || teclas['arrowdown']) jugador.y += jugador.velocidad;
-    if (teclas['a'] || teclas['arrowleft']) jugador.x -= jugador.velocidad;
-    if (teclas['d'] || teclas['arrowright']) jugador.x += jugador.velocidad;
+    if (teclas['w'] || teclas['arrowup']) jug.y -= jug.v; if (teclas['s'] || teclas['arrowdown']) jug.y += jug.v;
+    if (teclas['a'] || teclas['arrowleft']) jug.x -= jug.v; if (teclas['d'] || teclas['arrowright']) jug.x += jug.v;
 
-    // Límites elásticos del mapa masivo
-    let limitX = canvas.width * 0.43;
-    let limitY = canvas.height * 0.38;
-    jugador.x = Math.max(-limitX, Math.min(limitX, jugador.x));
-    jugador.y = Math.max(-limitY, Math.min(limitY, jugador.y));
+    jug.x = Math.max(-canvas.width * 0.42, Math.min(canvas.width * 0.42, jug.x));
+    jug.y = Math.max(-canvas.height * 0.36, Math.min(canvas.height * 0.36, jug.y));
 
-    // Colisión matemática radial con Botón de Compra 🟢
-    let distCompra = Math.sqrt((jugador.x - padCompra.x)**2 + (jugador.y - padCompra.y)**2);
-    let costeActual = calcularCosteSiguiente();
-    if (distCompra < jugador.radio + padCompra.radio && dineroBilletera >= costeActual && edificiosComprados.length < listaFábricas.length) {
-        dineroBilletera -= costeActual;
-        
-        // Las fábricas se construyen alineadas a los costados del fondo
-        let numEdi = edificiosComprados.length;
-        let lateralX = -240 + (numEdi * 80);
-        let lateralY = -120;
-
-        edificiosComprados.push({
-            nombre: listaFábricas[numEdi].n,
-            x: lateralX,
-            y: lateralY,
-            h: 55 + Math.random() * 35,
-            color: bando === 'usa' ? '#2e519e' : '#a04000'
-        });
-        
-        jugador.y += 45; // Rebote mecánico estilo Roblox pad
-        actualizarHUD();
-    }
-
-    // Colisión matemática radial con Cajero Automático 🟡
-    let distCajero = Math.sqrt((jugador.x - padCajero.x)**2 + (jugador.y - padCajero.y)**2);
-    if (distCajero < jugador.radio + padCajero.radio && dineroCajero > 0) {
-        dineroBilletera += dineroCajero;
-        dineroCajero = 0;
-        jugador.y += 45; // Rebote
-        actualizarHUD();
-    }
-
-    requestAnimationFrame(bucleRenderizado);
+    [pFab, pPer, pDef].forEach(p => {
+        let d = Math.sqrt((jug.x - p.x)**2 + (jug.y - p.y)**2);
+        if (d < jug.radio + p.radio) {
+            let cat = p.cat, idx = mejorasCompradas[cat], item = base[cat][idx];
+            if (item && dineroBilletera >= item.c) {
+                dineroBilletera -= item.c; mejorasCompradas[cat]++;
+                if (cat === 'maquinas') {
+                    fabricasFisicas.push({ nombre: item.n, x: -200 + (idx * 90), y: -115, h: 50 + (idx * 15), color: bando === 'usa' ? '#1e40af' : '#b45309' });
+                }
+                if (item.mejora === 'velocidad_cinta') velH += 2.5;
+                if (item.mejora === 'velocidad_personaje') jug.v += 3;
+                jug.y += 45; actualizarHUD();
+            }
+        }
+    });
+    requestAnimationFrame(render);
 }
