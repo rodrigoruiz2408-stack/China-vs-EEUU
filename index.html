@@ -3,218 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guerra Comercial Tycoon - Ultra Estable</title>
+    <title>Guerra Comercial Tycoon</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #0f172a; user-select: none; }
-        
-        /* Controles e interfaz */
-        #interfaz { position: fixed; top: 20px; left: 20px; z-index: 10; }
-        .bloque-ui { background: rgba(15, 23, 42, 0.9); padding: 15px 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.5); margin-bottom: 10px; border-left: 5px solid #3b82f6; }
-        
-        .selector-bando { display: flex; gap: 10px; }
-        .btn-bando { padding: 10px 15px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; color: white; font-size: 0.9rem; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
-        .btn-usa { background: #ef4444; }
-        .btn-china { background: #eab308; color: #1e293b; }
-        
-        #hud-dinero { font-size: 1.8rem; font-weight: bold; color: #4ade80; margin-bottom: 5px; }
-        #hud-info { font-size: 0.9rem; color: #cbd5e1; }
-        
-        #alerta { position: fixed; top: 20px; right: 20px; background: #ef4444; color: white; padding: 15px 25px; border-radius: 8px; font-weight: bold; font-size: 1.1rem; display: none; z-index: 10; animation: parpadeo 1s infinite; max-width: 320px; box-shadow: 0 4px 15px rgba(239,68,68,0.5); }
-        #instrucciones { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.7); padding: 8px 20px; border-radius: 20px; font-size: 0.9rem; z-index: 10; text-align: center; }
-        
-        /* Lienzo del juego nativo */
+        body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; background: #0f172a; user-select: none; }
+        #ui { position: fixed; top: 20px; left: 20px; z-index: 10; }
+        .box { background: rgba(15,23,42,0.9); padding: 15px; border-radius: 10px; color: white; margin-bottom: 10px; border-left: 5px solid #3b82f6; }
+        .btn { padding: 10px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; color: white; margin-right: 5px; }
+        #hud-m { font-size: 1.8rem; font-weight: bold; color: #4ade80; }
+        #alerta { position: fixed; top: 20px; right: 20px; background: #ef4444; color: white; padding: 15px; border-radius: 8px; font-weight: bold; display: none; z-index: 10; }
+        #inst { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.7); padding: 8px 20px; border-radius: 20px; font-size: 0.85rem; text-align: center; }
         canvas { display: block; width: 100vw; height: 100vh; }
-        @keyframes parpadeo { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
     </style>
 </head>
 <body>
-
-    <div id="interfaz">
-        <div class="bloque-ui" id="borde-bando">
-            <div id="hud-dinero">Billetera: $100</div>
-            <div id="hud-info">Bando: EE.UU. | Fábricas: 0 (Siguiente: $50)</div>
+    <div id="ui">
+        <div class="box" id="borde">
+            <div id="hud-m">Billetera: \$100</div>
+            <div id="hud-i">Bando: EE.UU. | Fábricas: 0 (Siguiente: \$50)</div>
         </div>
-        <div class="selector-bando">
-            <button class="btn-bando btn-usa" onclick="cambiarBando('usa')">🇺🇸 Bando EE.UU.</button>
-            <button class="btn-bando btn-china" onclick="cambiarBando('china')">🇨🇳 Bando China</button>
-        </div>
+        <button class="btn" style="background:#ef4444" onclick="bando('usa')">🇺🇸 EE.UU.</button>
+        <button class="btn" style="background:#eab308;color:#000" onclick="bando('china')">🇨🇳 China</button>
     </div>
-
     <div id="alerta">🚨 ¡ALERTA ECONÓMICA!</div>
-    <div id="instrucciones">Muévete con las FLECHAS del teclado o WASD. ¡Pisa el círculo verde brillante para construir fábricas!</div>
-
-    <!-- Pantalla de dibujo del juego nativa del navegador -->
-    <canvas id="gameCanvas"></canvas>
-
+    <div id="inst">Usa WASD / Flechas para moverte, o haz CLIC en el mapa para teletransportarte. ¡Pisa el botón verde!</div>
+    <canvas id="cv"></canvas>
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-
-        // Ajustar pantalla
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resize);
-        resize();
-
-        // Variables lógicas del Tycoon
-        let bando = 'usa';
-        let dinero = 100;
-        let multiplicador = 1;
-        let costeFabrica = 50;
-        let fabricas = [];
-        let moneda = '$';
-
-        // Variables del Jugador estilo Roblox
-        let jugador = { x: 0, y: 0, radio: 20, color: '#3b82f6', velocidad: 5 };
-        
-        // El botón de compra en el suelo
-        let botonCompra = { x: 0, y: -100, radio: 35 };
-
-        // Teclado activo
-        const keys = {};
-        window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-
-        // Cambiar entre EE.UU. y China
-        function cambiarBando(seleccion) {
-            bando = seleccion;
-            moneda = bando === 'usa' ? '$' : '¥';
-            jugador.color = bando === 'usa' ? '#3b82f6' : '#eab308';
-            document.getElementById('borde-bando').style.borderLeftColor = bando === 'usa' ? '#3b82f6' : '#eab308';
-            actualizarHUD();
-        }
-
-        function actualizarHUD() {
-            let nombreBando = bando === 'usa' ? 'EE.UU.' : 'China';
-            document.getElementById('hud-dinero').innerText = `Billetera: ${moneda}${dinero}`;
-            document.getElementById('hud-info').innerText = `Bando: ${nombreBando} | Fábricas: ${fabricas.length} (Siguiente: ${moneda}${costeFabrica})`;
-        }
-
-        // Generar dinero pasivo cada 1.5 segundos
-        setInterval(() => {
-            if (fabricas.length > 0) {
-                let ganancia = fabricas.length * 5;
-                dinero += Math.round(ganancia * multiplicador);
-                actualizarHUD();
+        const cv = document.getElementById('cv'), cx = cv.getContext('2d');
+        function res() { cv.width = window.innerWidth; cv.height = window.innerHeight; }
+        window.addEventListener('resize', res); res();
+        let bd = 'usa', mon = '\$', cash = 100, mult = 1, cost = 50, fabs = [];
+        let p = { x: 0, y: 100, r: 18, c: '#3b82f6', v: 6 }, btn = { x: 0, y: -80, r: 35 };
+        const k = {};
+        window.addEventListener('keydown', e => k[e.key.toLowerCase()] = true);
+        window.addEventListener('keyup', e => k[e.key.toLowerCase()] = false);
+        window.addEventListener('mousedown', e => {
+            if (e.target.tagName !== 'BUTTON') {
+                p.x = e.clientX - cv.width / 2;
+                p.y = e.clientY - cv.height / 2;
             }
-        }, 1500);
-
-        // Eventos aleatorios de aranceles cada 10 segundos
+        });
+        function bando(s) {
+            bd = s; mon = bd === 'usa' ? '\$' : '¥';
+            p.c = bd === 'usa' ? '#3b82f6' : '#eab308';
+            document.getElementById('borde').style.borderLeftColor = p.c;
+            up();
+        }
+        function up() {
+            document.getElementById('hud-m').innerText = `Billetera: ${mon}${cash}`;
+            document.getElementById('hud-i').innerText = `Bando: ${bd.toUpperCase()} | Fábricas: ${fabs.length} (Siguiente: ${mon}${cost})`;
+        }
+        setInterval(() => { if (fabs.length > 0) { cash += Math.round(fabs.length * 5 * mult); up(); } }, 1500);
         setInterval(() => {
-            let azar = Math.random();
-            const alertaDiv = document.getElementById('alerta');
-            if (azar < 0.5) {
-                multiplicador = 0.5;
-                alertaDiv.innerText = bando === 'usa' ? "🚨 ¡Aranceles de China! Ingresos reducidos al 50%" : "🚨 ¡EE.UU. bloquea puertos! Ingresos al 50%";
-                alertaDiv.style.display = 'block';
-            } else {
-                multiplicador = 1;
-                alertaDiv.style.display = 'none';
-            }
+            let az = Math.random(), div = document.getElementById('alerta');
+            if (az < 0.5) {
+                mult = 0.5;
+                div.innerText = bd === 'usa' ? "🚨 ¡Aranceles de China! Ganancias al 50%" : "🚨 ¡Bloqueo de EE.UU.! Ganancias al 50%";
+                div.style.display = 'block';
+            } else { mult = 1; div.style.display = 'none'; }
         }, 10000);
-
-        // Mecánica de construcción al pisar el botón verde
-        function intentarComprar() {
-            if (dinero >= costeFabrica) {
-                dinero -= costeFabrica;
-                
-                // Guardamos una nueva fábrica con posiciones aleatorias en el mapa
-                fabricas.push({
-                    x: (Math.random() - 0.5) * (canvas.width * 0.6),
-                    y: ((Math.random() - 0.5) * (canvas.height * 0.5)) - 100,
-                    alto: 40 + Math.random() * 50,
-                    ancho: 30,
-                    color: bando === 'usa' ? '#60a5fa' : '#fca5a5'
-                });
-
-                costeFabrica = Math.round(costeFabrica * 1.6);
-                jugador.y += 40; // Empujar al jugador un poco para atrás al comprar
-                actualizarHUD();
-            }
-        }
-
-        // Bucle de dibujo principal (60 FPS estables)
-        function dibujarJuego() {
-            // Limpiar pantalla y poner fondo dinámico según el bando
-            ctx.fillStyle = bando === 'usa' ? '#0f172a' : '#451a03';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Centrar la cámara en la mitad de la pantalla
-            ctx.save();
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-
-            // 1. Dibujar el Suelo gris del Imperio
-            ctx.fillStyle = '#334155';
-            ctx.fillRect(-canvas.width * 0.4, -canvas.height * 0.4, canvas.width * 0.8, canvas.height * 0.8);
-
-            // 2. Dibujar el Botón de compra verde brillante
-            ctx.beginPath();
-            ctx.arc(botonCompra.x, botonCompra.y, botonCompra.radio, 0, Math.PI * 2);
-            ctx.fillStyle = '#22c55e';
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#22c55e';
-            ctx.fill();
-            ctx.shadowBlur = 0; // Desactivar sombra para el resto
-
-            // Texto dentro del botón verde
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 12px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText("PISAR", botonCompra.x, botonCompra.y - 2);
-            ctx.fillText("COMPRAR", botonCompra.x, botonCompra.y + 12);
-
-            // 3. Dibujar las Fábricas construidas en pseudo-3D
-            fabricas.forEach(fab => {
-                // Sombra/Base del edificio
-                ctx.fillStyle = 'rgba(0,0,0,0.3)';
-                ctx.fillRect(fab.x - fab.ancho/2 + 5, fab.y - fab.alto + 5, fab.ancho, fab.alto);
-                
-                // Edificio principal
-                ctx.fillStyle = fab.color;
-                ctx.fillRect(fab.x - fab.ancho/2, fab.y - fab.alto, fab.ancho, fab.alto);
-                
-                // Techo brillante estilo Roblox
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(fab.x - fab.ancho/2, fab.y - fab.alto, fab.ancho, 6);
+        function loop() {
+            cx.fillStyle = bd === 'usa' ? '#0f172a' : '#451a03'; cx.fillRect(0, 0, cv.width, cv.height);
+            cx.save(); cx.translate(cv.width / 2, cv.height / 2);
+            cx.fillStyle = '#334155'; cx.fillRect(-cv.width * 0.4, -cv.height * 0.4, cv.width * 0.8, cv.height * 0.8);
+            cx.beginPath(); cx.arc(btn.x, btn.y, btn.r, 0, Math.PI * 2); cx.fillStyle = '#22c55e'; cx.fill();
+            cx.fillStyle = '#fff'; cx.font = 'bold 10px sans-serif'; cx.textAlign = 'center'; cx.fillText("COMPRAR", btn.x, btn.y + 4);
+            fabs.forEach(f => {
+                cx.fillStyle = 'rgba(0,0,0,0.2)'; cx.fillRect(f.x - 12, f.y - f.h + 5, 25, f.h);
+                cx.fillStyle = f.c; cx.fillRect(f.x - 12, f.y - f.h, 25, f.h);
+                cx.fillStyle = '#fff'; cx.fillRect(f.x - 12, f.y - f.h, 25, 5);
             });
-
-            // 4. Dibujar al Jugador (Cubo con cabeza estilo Roblox)
-            // Cuerpo
-            ctx.fillStyle = jugador.color;
-            ctx.fillRect(jugador.x - jugador.radio, jugador.y - jugador.radio, jugador.radio * 2, jugador.radio * 2);
-            // Cara simulada (Ojos mirando al frente)
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(jugador.x - 10, jugador.y - 5, 6, 6);
-            ctx.fillRect(jugador.x + 4, jugador.y - 5, 6, 6);
-
-            ctx.restore();
-
-            // Lógica de Movimiento del jugador
-            if (keys['arrowup'] || keys['w']) jugador.y -= jugador.velocidad;
-            if (keys['arrowdown'] || keys['s']) jugador.y += jugador.velocidad;
-            if (keys['arrowleft'] || keys['a']) jugador.x -= jugador.velocidad;
-            if (keys['arrowright'] || keys['d']) jugador.x += jugador.velocidad;
-
-            // Límites del suelo para que no se escape del mapa gris
-            let limiteX = canvas.width * 0.38;
-            let limiteY = canvas.height * 0.38;
-            jugador.x = Math.max(-limiteX, Math.min(limiteX, jugador.x));
-            jugador.y = Math.max(-limiteY, Math.min(limiteY, jugador.y));
-
-            // Detección matemática de pisada sobre el botón de compra
-            let dx = jugador.x - botonCompra.x;
-            let dy = jugador.y - botonCompra.y;
-            let distancia = Math.sqrt(dx * dx + dy * dy);
-
-            if (distancia < jugador.radio + botonCompra.radio) {
-                intentarComprar();
+            cx.fillStyle = p.c; cx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+            cx.fillStyle = '#fff'; cx.fillRect(p.x - 9, p.y - 5, 5, 5); cx.fillRect(p.x + 4, p.y - 5, 5, 5);
+            cx.restore();
+            if (k['arrowup'] || k['w']) p.y -= p.v; if (k['arrowdown'] || k['s']) p.y += p.v;
+            if (k['arrowleft'] || k['a']) p.x -= p.v; if (k['arrowright'] || k['d']) p.x += p.v;
+            p.x = Math.max(-cv.width * 0.38, Math.min(cv.width * 0.38, p.x));
+            p.y = Math.max(-cv.height * 0.38, Math.min(cv.height * 0.38, p.y));
+            if (Math.sqrt((p.x - btn.x)**2 + (p.y - btn.y)**2) < p.r + btn.r && cash >= cost) {
+                cash -= cost; fabs.push({ x: (Math.random() - 0.5) * (cv.width * 0.5), y: ((Math.random() - 0.5) * (cv.height * 0.3)) - 100, h: 40 + Math.random() * 40, c: bd === 'usa' ? '#60a5fa' : '#fca5a5' });
+                cost = Math.round(cost * 1.6); p.y += 45; up();
             }
-
-            requestAnimationFrame(dibujarJuego);
+            requestAnimationFrame(loop);
         }
-
-        // Arrancar el juego de inmediato al cargar la página
-        actualizarHUD();
-        requestAnimationFrame(dibujarJuego);
+        up(); requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
