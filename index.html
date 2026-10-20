@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Guerra Comercial Tycoon 3D</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #0f172a; user-select: none; }
+        
+        /* Pantalla de inicio siempre al frente */
+        #pantalla-inicio { 
+            position: fixed; 
+            top: 0; left: 0;
+            width: 100vw; height: 100vh; 
+            background: rgba(15, 23, 42, 0.95); 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            z-index: 99999 !important; 
+            color: white; 
+        }
+        
+        .botones-inicio { display: flex; gap: 40px; margin-top: 30px; }
+        .btn-bando { padding: 20px 40px; font-size: 1.5rem; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; transition: transform 0.2s; position: relative; z-index: 100000; }
+        .btn-usa { background: #ef4444; color: white; border-bottom: 6px solid #b91c1c; }
+        .btn-china { background: #eab308; color: #1e293b; border-bottom: 6px solid #a16207; }
+        .btn-bando:hover { transform: scale(1.1); }
+        
+        #hud { position: fixed; top: 20px; left: 20px; color: white; font-size: 1.8rem; font-weight: bold; z-index: 5; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 8px; pointer-events: none; }
+        #alerta { position: fixed; top: 20px; right: 20px; background: #ef4444; color: white; padding: 15px 25px; border-radius: 8px; font-weight: bold; font-size: 1.2rem; display: none; z-index: 5; animation: parpadeo 1s infinite; max-width: 350px; box-shadow: 0 4px 15px rgba(239,68,68,0.5); }
+        #instrucciones { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.7); background: rgba(0,0,0,0.6); padding: 8px 20px; border-radius: 20px; font-size: 0.9rem; z-index: 5; pointer-events: none; }
+        
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        @keyframes parpadeo { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    </style>
+    <script src="https://cloudflare.com"></script>
+</head>
+<body>
+
+    <div id="pantalla-inicio">
+        <h1>GUERRA COMERCIAL TYCOON 3D 🚢</h1>
+        <p style="color: #94a3b8; font-size: 1.2rem;">Elige tu bando para iniciar tu imperio estilo Roblox</p>
+        <div class="botones-inicio">
+            <button class="btn-bando btn-usa" onclick="elegirBando('usa')">🇺🇸 EE. UU.<br><span style="font-size:0.9rem;font-weight:normal;">Tecnología e IA</span></button>
+            <button class="btn-bando btn-china" onclick="elegirBando('china')">🇨🇳 China<br><span style="font-size:0.9rem;font-weight:normal;">Fábricas y Puerto</span></button>
+        </div>
+    </div>
+
+    <div id="hud">Billetera: \$0</div>
+    <div id="alerta">🚨 ¡ALERTA ECONÓMICA!</div>
+    <div id="instrucciones">Usa las flechas del teclado ⬆️⬇️⬅️➡️ o WASD para mover a tu personaje</div>
+
+    <script>
+        let bando = '';
+        let dinero = 100;
+        let multiplicador = 1;
+        let costeFabrica = 50;
+        let fabricasCompradas = 0;
+        let moneda = '\$';
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1e293b);
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1.2);
+        light.position.set(10, 20, 15);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x64748b, 0.6));
+
+        const floorGeo = new THREE.BoxGeometry(40, 0.5, 40);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.position.y = -0.25;
+        scene.add(floor);
+
+        const playerGeo = new THREE.BoxGeometry(1.2, 2, 1.2);
+        let playerMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const player = new THREE.Mesh(playerGeo, playerMat);
+        player.position.set(0, 1, 0);
+        scene.add(player);
+
+        const btnGeo = new THREE.CylinderGeometry(1.5, 1.5, 0.2, 32);
+        const btnMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x15803d, emissiveIntensity: 0.5 });
+        const botonCompra = new THREE.Mesh(btnGeo, btnMat);
+        botonCompra.position.set(0, 0.1, -5);
+        scene.add(botonCompra);
+
+        camera.position.set(0, 12, 12);
+        camera.lookAt(player.position);
+
+        const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+        window.addEventListener('keydown', e => { if(e.key in keys) keys[e.key] = true; });
+        window.addEventListener('keyup', e => { if(e.key in keys) keys[e.key] = false; });
+
+        function elegirBando(seleccion) {
+            bando = seleccion;
+            moneda = bando === 'usa' ? '\$' : '¥';
+            player.material.color.setHex(bando === 'usa' ? 0x3b82f6 : 0xeab308);
+            scene.background.setHex(bando === 'usa' ? 0x0f172a : 0x451a03);
+            
+            document.getElementById('pantalla-inicio').style.display = 'none';
+            actualizarHUD();
+
+            setInterval(() => {
+                if (fabricasCompradas > 0) {
+                    dinero += Math.round(fabricasCompradas * 5 * multiplicador);
+                    actualizarHUD();
+                }
+            }, 1500);
+
+            setInterval(() => {
+                let azar = Math.random();
+                const alertaDiv = document.getElementById('alerta');
+                if (azar < 0.5) {
+                    multiplicador = 0.5;
+                    alertaDiv.innerText = bando === 'usa' ? "🚨 ¡Aranceles de China! Ingresos reducidos al 50%" : "🚨 ¡EE.UU. bloquea tus puertos! Ingresos al 50%";
+                    alertaDiv.style.display = 'block';
+                } else {
+                    multiplicador = 1;
+                    alertaDiv.style.display = 'none';
+                }
+            }, 10000);
+        }
+
+        function actualizarHUD() {
+            document.getElementById('hud').innerText = `Billetera: ${moneda}${dinero} | Fábricas: ${fabricasCompradas} (Próxima: ${moneda}${costeFabrica})`;
+        }
+
+        function construirFabrica() {
+            fabricasCompradas++;
+            dinero -= costeFabrica;
+            costeFabrica = Math.round(costeFabrica * 1.6);
+            
+            const fabGeo = new THREE.BoxGeometry(2, 3 + Math.random()*3, 2);
+            const fabMat = new THREE.MeshStandardMaterial({ color: bando === 'usa' ? 0x60a5fa : 0xfca5a5 });
+            const edif = new THREE.Mesh(fabGeo, fabMat);
+            
+            edif.position.set((Math.random() - 0.5) * 25, 1.5, (Math.random() - 0.5) * 25 - 8);
+            scene.add(edif);
+            actualizarHUD();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            let velocidad = 0.2;
+            if (keys.w || keys.ArrowUp) player.position.z -= velocidad;
+            if (keys.s || keys.ArrowDown) player.position.z += velocidad;
+            if (keys.a || keys.ArrowLeft) player.position.x -= velocidad;
+            if (keys.d || keys.ArrowRight) player.position.x += velocidad;
+
+            player.position.x = Math.max(-19, Math.min(19, player.position.x));
+            player.position.z = Math.max(-19, Math.min(19, player.position.z));
+
+            camera.position.x = player.position.x;
+            camera.position.z = player.position.z + 12;
+
+            botonCompra.rotation.y += 0.02;
+
+            let distancia = player.position.distanceTo(botonCompra.position);
+            if (distancia < 1.8 && dinero >= costeFabrica) {
+                construirFabrica();
+                player.position.z += 1.5; 
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
