@@ -3,89 +3,161 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guerra Comercial Tycoon</title>
+    <title>Guerra Comercial Tycoon HD</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; background: #0f172a; user-select: none; }
-        #ui { position: fixed; top: 20px; left: 20px; z-index: 10; }
-        .box { background: rgba(15,23,42,0.9); padding: 15px; border-radius: 10px; color: white; margin-bottom: 10px; border-left: 5px solid #3b82f6; }
-        .btn { padding: 10px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; color: white; margin-right: 5px; }
-        #hud-m { font-size: 1.8rem; font-weight: bold; color: #4ade80; }
-        #alerta { position: fixed; top: 20px; right: 20px; background: #ef4444; color: white; padding: 15px; border-radius: 8px; font-weight: bold; display: none; z-index: 10; }
-        #inst { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.7); padding: 8px 20px; border-radius: 20px; font-size: 0.85rem; text-align: center; }
+        body { margin: 0; overflow: hidden; font-family: sans-serif; background: #05070f; user-select: none; }
+        #ui { position: fixed; top: 20px; left: 20px; z-index: 10; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+        .card { background: rgba(10,15,30,0.92); border-left: 6px solid #3b82f6; padding: 15px; border-radius: 10px; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: blur(5px); min-width: 250px; pointer-events: auto; }
+        #m-disp { font-size: 2.2rem; font-weight: 900; color: #22c55e; }
+        #v-disp { font-size: 1rem; color: #eab308; font-weight: bold; }
+        #n-disp { font-size: 0.8rem; color: #94a3b8; margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px; }
+        .btn { padding: 10px 15px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; color: white; margin-right: 5px; pointer-events: auto; }
+        #alert { position: fixed; top: 20px; right: 20px; background: #ef4444; color: white; padding: 15px; border-radius: 10px; font-weight: bold; display: none; z-index: 10; }
+        #ctrls { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: #cbd5e1; background: rgba(10,15,30,0.8); padding: 8px 20px; border-radius: 20px; font-size: 0.8rem; text-align: center; }
         canvas { display: block; width: 100vw; height: 100vh; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <div class="box" id="borde">
-            <div id="hud-m">Billetera: \$100</div>
-            <div id="hud-i">Bando: EE.UU. | Fábricas: 0 (Siguiente: \$50)</div>
+        <div class="card" id="borde">
+            <div id="m-disp">\$100</div>
+            <div id="v-disp">📦 En Bóveda: \$0</div>
+            <div id="n-disp">Siguiente: Oficina Software (\$50)</div>
         </div>
-        <button class="btn" style="background:#ef4444" onclick="bando('usa')">🇺🇸 EE.UU.</button>
-        <button class="btn" style="background:#eab308;color:#000" onclick="bando('china')">🇨🇳 China</button>
+        <div>
+            <button class="btn" style="background:#ef4444" onclick="sBando('usa')">🇺🇸 EE.UU.</button>
+            <button class="btn" style="background:#eab308;color:#000" onclick="sBando('china')">🇨🇳 China</button>
+        </div>
     </div>
-    <div id="alerta">🚨 ¡ALERTA ECONÓMICA!</div>
-    <div id="inst">Usa WASD / Flechas para moverte, o haz CLIC en el mapa para teletransportarte. ¡Pisa el botón verde!</div>
+    <div id="alert">🚨 ¡ALERTA ECONÓMICA!</div>
+    <div id="ctrls">Muévete con WASD / Flechas. ¡Pisa el botón VERDE para comprar y el AMARILLO para cobrar!</div>
     <canvas id="cv"></canvas>
+
     <script>
         const cv = document.getElementById('cv'), cx = cv.getContext('2d');
         function res() { cv.width = window.innerWidth; cv.height = window.innerHeight; }
         window.addEventListener('resize', res); res();
-        let bd = 'usa', mon = '\$', cash = 100, mult = 1, cost = 50, fabs = [];
-        let p = { x: 0, y: 100, r: 18, c: '#3b82f6', v: 6 }, btn = { x: 0, y: -80, r: 35 };
+
+        let bd = 'usa', mon = '\$', cash = 100, vault = 0, mult = 1;
+        const lUsa = ["Oficina Software", "Data Center LED", "Fábrica Chips", "Satélite Espía", "Matriz IA Cuántica"];
+        const lChi = ["Taller Ensamblaje", "Fábrica Neón", "Giga-Fábrica Litio", "Puerto Autónomo", "Red Tierras Raras"];
+        let eCom = [], bFlot = [];
+
+        let p = { x: 0, y: 120, r: 16, c: '#3b82f6', v: 6 }, bBuy = { x: -100, y: 20, r: 30 }, bCol = { x: 100, y: 20, r: 30 };
         const k = {};
         window.addEventListener('keydown', e => k[e.key.toLowerCase()] = true);
         window.addEventListener('keyup', e => k[e.key.toLowerCase()] = false);
-        window.addEventListener('mousedown', e => {
-            if (e.target.tagName !== 'BUTTON') {
-                p.x = e.clientX - cv.width / 2;
-                p.y = e.clientY - cv.height / 2;
+
+        function gCost() { return Math.round(50 * Math.pow(2.2, eCom.length)); }
+
+        function sBando(nb) {
+            if (bd !== nb) {
+                bd = nb; mon = bd === 'usa' ? '\$' : '¥';
+                p.c = bd === 'usa' ? '#3b82f6' : '#eab308';
+                document.getElementById('borde').style.borderLeftColor = p.c;
+                eCom = []; bFlot = []; cash = 100; vault = 0; mult = 1; upUI();
             }
-        });
-        function bando(s) {
-            bd = s; mon = bd === 'usa' ? '\$' : '¥';
-            p.c = bd === 'usa' ? '#3b82f6' : '#eab308';
-            document.getElementById('borde').style.borderLeftColor = p.c;
-            up();
         }
-        function up() {
-            document.getElementById('hud-m').innerText = `Billetera: ${mon}${cash}`;
-            document.getElementById('hud-i').innerText = `Bando: ${bd.toUpperCase()} | Fábricas: ${fabs.length} (Siguiente: ${mon}${cost})`;
+
+        function upUI() {
+            let lAct = bd === 'usa' ? lUsa : lChi; let cost = gCost();
+            let msg = eCom.length < lAct.length ? `Siguiente: ${lAct[eCom.length]} (${mon}${cost})` : "¡Imperio Máximo! 🏆";
+            document.getElementById('m-disp').innerText = `${mon}${cash}`;
+            document.getElementById('v-disp').innerText = `📦 En Bóveda: ${mon}${vault}`;
+            document.getElementById('n-disp').innerText = msg;
         }
-        setInterval(() => { if (fabs.length > 0) { cash += Math.round(fabs.length * 5 * mult); up(); } }, 1500);
+
         setInterval(() => {
-            let az = Math.random(), div = document.getElementById('alerta');
-            if (az < 0.5) {
-                mult = 0.5;
-                div.innerText = bd === 'usa' ? "🚨 ¡Aranceles de China! Ganancias al 50%" : "🚨 ¡Bloqueo de EE.UU.! Ganancias al 50%";
+            if (eCom.length > 0) {
+                let rTot = 0; eCom.forEach((ed, idx) => { rTot += (idx + 1) * 7; if(Math.random()<0.4) cBillete(ed.x, ed.y); });
+                vault += Math.round(rTot * mult); upUI();
+            }
+        }, 1500);
+
+        setInterval(() => {
+            let pr = Math.random(), div = document.getElementById('alert');
+            if (pr < 0.5) {
+                mult = 0.4; div.innerText = bd === 'usa' ? "🚨 ¡China aplica Aranceles! Ganancias -60%" : "🚨 ¡EE.UU. bloquea Puertos! Ganancias -60%";
                 div.style.display = 'block';
             } else { mult = 1; div.style.display = 'none'; }
         }, 10000);
-        function loop() {
-            cx.fillStyle = bd === 'usa' ? '#0f172a' : '#451a03'; cx.fillRect(0, 0, cv.width, cv.height);
-            cx.save(); cx.translate(cv.width / 2, cv.height / 2);
-            cx.fillStyle = '#334155'; cx.fillRect(-cv.width * 0.4, -cv.height * 0.4, cv.width * 0.8, cv.height * 0.8);
-            cx.beginPath(); cx.arc(btn.x, btn.y, btn.r, 0, Math.PI * 2); cx.fillStyle = '#22c55e'; cx.fill();
-            cx.fillStyle = '#fff'; cx.font = 'bold 10px sans-serif'; cx.textAlign = 'center'; cx.fillText("COMPRAR", btn.x, btn.y + 4);
-            fabs.forEach(f => {
-                cx.fillStyle = 'rgba(0,0,0,0.2)'; cx.fillRect(f.x - 12, f.y - f.h + 5, 25, f.h);
-                cx.fillStyle = f.c; cx.fillRect(f.x - 12, f.y - f.h, 25, f.h);
-                cx.fillStyle = '#fff'; cx.fillRect(f.x - 12, f.y - f.h, 25, 5);
-            });
-            cx.fillStyle = p.c; cx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
-            cx.fillStyle = '#fff'; cx.fillRect(p.x - 9, p.y - 5, 5, 5); cx.fillRect(p.x + 4, p.y - 5, 5, 5);
-            cx.restore();
-            if (k['arrowup'] || k['w']) p.y -= p.v; if (k['arrowdown'] || k['s']) p.y += p.v;
-            if (k['arrowleft'] || k['a']) p.x -= p.v; if (k['arrowright'] || k['d']) p.x += p.v;
-            p.x = Math.max(-cv.width * 0.38, Math.min(cv.width * 0.38, p.x));
-            p.y = Math.max(-cv.height * 0.38, Math.min(cv.height * 0.38, p.y));
-            if (Math.sqrt((p.x - btn.x)**2 + (p.y - btn.y)**2) < p.r + btn.r && cash >= cost) {
-                cash -= cost; fabs.push({ x: (Math.random() - 0.5) * (cv.width * 0.5), y: ((Math.random() - 0.5) * (cv.height * 0.3)) - 100, h: 40 + Math.random() * 40, c: bd === 'usa' ? '#60a5fa' : '#fca5a5' });
-                cost = Math.round(cost * 1.6); p.y += 45; up();
-            }
-            requestAnimationFrame(loop);
+
+        function cBillete(ox, oy) {
+            bFlot.push({ x: ox, y: oy - 30, tx: bCol.x, ty: bCol.y, p: 0, v: 0.03 });
         }
-        up(); requestAnimationFrame(loop);
+
+        function drawPad(b, clr, txt) {
+            cx.beginPath(); cx.arc(b.x, b.y, b.r, 0, Math.PI*2); cx.fillStyle = clr; cx.fill();
+            cx.lineWidth = 2; cx.strokeStyle = '#fff'; cx.stroke();
+            cx.fillStyle = '#fff'; cx.font = 'bold 9px sans-serif'; cx.textAlign = 'center'; cx.fillText(txt, b.x, b.y + 3);
+        }
+
+        function render() {
+            cx.fillStyle = bd === 'usa' ? '#0f172a' : '#291305'; cx.fillRect(0, 0, cv.width, cv.height);
+            cx.save(); cx.translate(cv.width / 2, cv.height / 2);
+
+            // Rejilla Isométrica HD
+            cx.strokeStyle = bd === 'usa' ? 'rgba(59,130,246,0.06)' : 'rgba(234,179,8,0.05)'; cx.lineWidth = 1;
+            for(let i = -400; i <= 400; i += 40) {
+                cx.beginPath(); cx.moveTo(i, -400); cx.lineTo(i, 400); cx.stroke();
+                cx.beginPath(); cx.moveTo(-400, i); cx.lineTo(400, i); cx.stroke();
+            }
+
+            // Suelo tecnológico central
+            cx.fillStyle = '#1e293b'; cx.fillRect(-180, -150, 360, 300);
+
+            // Botones de juego
+            drawPad(bBuy, '#22c55e', 'COMPRAR');
+            drawPad(bCol, '#eab308', 'COBRAR');
+
+            // Dibujar Edificios en 3D Isométrico Real
+            eCom.forEach(f => {
+                cx.fillStyle = 'rgba(0,0,0,0.3)'; cx.fillRect(f.x - 18, f.y - f.h + 6, 36, f.h); // Sombra
+                cx.fillStyle = bd === 'usa' ? '#1e3a8a' : '#9a3412'; cx.fillRect(f.x - 20, f.y - f.h, 40, f.h); // Cuerpo
+                cx.fillStyle = bd === 'usa' ? '#38bdf8' : '#fef08a'; // Ventanas Neón
+                cx.fillRect(f.x - 12, f.y - f.h + 10, 6, 8); cx.fillRect(f.x + 6, f.y - f.h + 10, 6, 8);
+                cx.fillRect(f.x - 12, f.y - f.h + 25, 6, 8); cx.fillRect(f.x + 6, f.y - f.h + 25, 6, 8);
+                cx.fillStyle = '#ffffff'; cx.fillRect(f.x - 20, f.y - f.h, 40, 5); // Techo
+                cx.fillStyle = '#94a3b8'; cx.font = '9px sans-serif'; cx.fillText(f.n, f.x, f.y + 14); // Texto
+            });
+
+            // Billetes volando en el aire
+            for (let i = bFlot.length - 1; i >= 0; i--) {
+                let b = bFlot[i]; b.p += b.v;
+                b.x += (b.tx - b.x) * b.p; b.y += (b.ty - b.y) * b.p;
+                cx.fillStyle = '#22c55e'; cx.fillRect(b.x - 6, b.y - 3, 12, 6);
+                if (Math.abs(b.x - b.tx) < 2) bFlot.splice(i, 1);
+            }
+
+            // Jugador (Avatar de bloques)
+            cx.fillStyle = p.c; cx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+            cx.fillStyle = '#fff'; cx.fillRect(p.x - 9, p.y - 5, 5, 5); cx.fillRect(p.x + 4, p.y - 5, 5, 5); // Ojos
+
+            cx.restore();
+
+            // Movimiento físico
+            if (k['w'] || k['arrowup']) p.y -= p.v; if (k['s'] || k['arrowdown']) p.y += p.v;
+            if (k['a'] || k['arrowleft']) p.x -= p.v; if (k['d'] || k['arrowright']) p.x += p.v;
+            p.x = Math.max(-170, Math.min(170, p.x)); p.y = Math.max(-140, Math.min(140, p.y));
+
+            // Pisada del botón de Compra 🟢
+            if (Math.sqrt((p.x - bBuy.x)**2 + (p.y - bBuy.y)**2) < p.r + bBuy.r) {
+                let lAct = bd === 'usa' ? lUsa : lChi; let cost = gCost();
+                if (cash >= cost && eCom.length < lAct.length) {
+                    cash -= cost;
+                    eCom.push({ n: lAct[eCom.length], x: -140 + (eCom.length * 70), y: -80, h: 50 + Math.random()*20 });
+                    p.y += 40; upUI();
+                }
+            }
+
+            // Pisada del botón de Cobro 🟡
+            if (Math.sqrt((p.x - bCol.x)**2 + (p.y - bCol.y)**2) < p.r + bCol.r && vault > 0) {
+                cash += vault; vault = 0; p.y += 40; upUI();
+            }
+
+            requestAnimationFrame(render);
+        }
+        upUI(); render();
     </script>
 </body>
 </html>
